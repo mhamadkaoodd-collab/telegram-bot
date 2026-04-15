@@ -22,6 +22,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
 
     if text == "💰 إيداع رصيد":
+    await update.message.reply_text(
+        "💳 طرق الدفع:\n\n"
+        "1️⃣ شام كاش\n"
+        "2️⃣ سيرياتيل كاش\n\n"
+        "📲 الرقم: 09XXXXXXXX\n\n"
+        "📩 بعد التحويل أرسل صورة الإيصال"
+    )
         await update.message.reply_text("💳 اختر طريقة الدفع")
 
     elif text == "🛍 المنتجات":
