@@ -4,6 +4,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Messa
 
 TOKEN = os.getenv("TOKEN")
 
+# 🔴 حط ID تبعك هون
+ADMIN_ID = 123456789
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         ["💰 إيداع رصيد"],
@@ -43,8 +46,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif text == "💬 الدعم الفني":
         await update.message.reply_text("📞 تواصل معنا عبر @your_support")
 
+
+# 🔥 استقبال الصور (الإيصالات)
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo = update.message.photo[-1]
+
+    # رد للعميل
+    await update.message.reply_text("✅ تم استلام الإيصال، سيتم مراجعته")
+
+    # إرسال الصورة لك
+    await context.bot.send_photo(
+        chat_id=ADMIN_ID,
+        photo=photo.file_id,
+        caption=f"📥 إيصال جديد\n👤 ID: {update.message.from_user.id}"
+    )
+
+
 app = ApplicationBuilder().token(TOKEN).build()
+
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
 app.run_polling()
