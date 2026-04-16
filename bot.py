@@ -5,6 +5,9 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Messa
 
 TOKEN = os.getenv("TOKEN")
 
+if not TOKEN:
+    raise ValueError("❌ لازم تضيف TOKEN في Railway")
+
 ADMIN_ID = 8015961726
 
 API_TOKEN = "dxupxt7yced8110nyh1buuos1"
@@ -17,7 +20,6 @@ products_cache = {}
 USD_RATE = 13600
 
 
-# 🟢 القائمة الرئيسية
 def main_menu():
     return ReplyKeyboardMarkup([
         ["💰 إيداع رصيد"],
@@ -38,7 +40,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# 🔥 جلب المنتجات
 def get_products():
     try:
         url = f"{BASE_URL}/products"
@@ -58,7 +59,6 @@ def get_products():
         return []
 
 
-# 🔥 تنفيذ الطلب
 def create_order(product_id, player_id):
     try:
         url = f"{BASE_URL}/order"
@@ -82,7 +82,6 @@ def create_order(product_id, player_id):
         return {"err": True}
 
 
-# 🧠 التحكم بالرسائل
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     text = update.message.text
@@ -90,7 +89,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     balances.setdefault(user_id, 0)
     orders.setdefault(user_id, [])
 
-    # 💰 إيداع
     if text == "💰 إيداع رصيد":
         await update.message.reply_text(
             "💳 طرق الدفع:\n\n"
@@ -99,7 +97,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📩 أرسل صورة الإيصال"
         )
 
-    # 🛍 المنتجات
     elif text == "🛍 المنتجات":
         products = get_products()
 
@@ -124,14 +121,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         )
 
-    # 🎯 اختيار منتج
     elif text in products_cache:
         product = products_cache[text]
         context.user_data["selected_product"] = product
 
         await update.message.reply_text("📥 أرسل ID اللاعب")
 
-    # 🧾 إدخال ID
     elif "selected_product" in context.user_data:
         product = context.user_data["selected_product"]
         player_id = text
@@ -143,10 +138,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ رصيدك غير كافي")
             return
 
-        # خصم
         balances[user_id] -= price_syp
 
-        # تنفيذ
         res = create_order(product["id"], player_id)
 
         if not res.get("err"):
@@ -157,15 +150,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         del context.user_data["selected_product"]
 
-    # 📋 طلباتي
     elif text == "📋 طلباتي":
         await update.message.reply_text("📦 الطلبات تتم تلقائياً من النظام")
 
-    # 👤 حسابي
     elif text == "👤 حسابي":
         await update.message.reply_text(f"💰 رصيدك: {balances[user_id]:.0f} ل.س")
 
-    # 💬 دعم
     elif text == "💬 الدعم الفني":
         await update.message.reply_text("📞 @your_support")
 
@@ -173,7 +163,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❓ اختر من القائمة")
 
 
-# 📸 الإيصالات
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     photo = update.message.photo[-1]
@@ -187,7 +176,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# 💰 إضافة رصيد
 async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id != ADMIN_ID:
         return
@@ -205,7 +193,6 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("/add id amount")
 
 
-# 🚀 تشغيل
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
@@ -213,4 +200,7 @@ app.add_handler(CommandHandler("add", add_balance))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-app.run_polling()
+
+if __name__ == "__main__":
+    print("🚀 Bot is running...")
+    app.run_polling()
