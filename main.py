@@ -1,160 +1,200 @@
-import os
-from telegram import ReplyKeyboardMarkup, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+import json
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
-TOKEN = os.getenv("TOKEN")
-
-# 👑 الأدمن
+# ⚠️ حط توكنك (غيره لاحقاً)
+TOKEN = "8260446715:AAEuhMk61QkIxHC4HT2sHNjaeGDaz_AhZ3M"
 ADMIN_ID = 8015961726
 
-# 💰 تخزين الرصيد
-balances = {}
+# ===== تحميل البيانات =====
+try:
+    with open("data.json", "r") as f:
+        data = json.load(f)
+except:
+    data = {"balances": {}, "orders": {}, "counter": 1}
 
-# 📦 تخزين الطلبات المؤقتة
-orders = {}
+balances = data["balances"]
+orders = data["orders"]
+order_id_counter = data["counter"]
 
+def save():
+    with open("data.json", "w") as f:
+        json.dump({
+            "balances": balances,
+            "orders": orders,
+            "counter": order_id_counter
+        }, f)
+
+# ===== الألعاب + الباكجات =====
+games = {
+    "PUBG MOBILE": ["60 UC", "325 UC", "660 UC", "1800 UC"],
+    "FREE FIRE": ["100💎", "310💎", "520💎"],
+    "CLASH OF CLANS": ["Gold Pass"],
+    "BRAWL STARS": ["30 Gems", "80 Gems"],
+    "CALL OF DUTY": ["80 CP", "400 CP"]
+}
+
+# ===== القائمة =====
+main_menu = [
+    ["🎮 الألعاب"],
+    ["💰 رصيدي", "📋 طلباتي"],
+    ["📥 إيداع", "💬 الدعم"]
+]
+
+# ===== START =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
+    user_id = str(update.message.from_user.id)
 
     if user_id not in balances:
         balances[user_id] = 0
-
-    keyboard = [
-        ["💰 إيداع رصيد"],
-        ["🛍 المنتجات", "📋 طلباتي"],
-        ["👤 حسابي", "💬 الدعم الفني"]
-    ]
-
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        save()
 
     await update.message.reply_text(
-        "🏠 القائمة الرئيسية:\nاختر الخدمة:",
-        reply_markup=reply_markup
+        "🔥 متجر احترافي VIP",
+        reply_markup=ReplyKeyboardMarkup(main_menu, resize_keyboard=True)
     )
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
+# ===== HANDLE =====
+async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global order_id_counter
+
+    user_id = str(update.message.from_user.id)
     text = update.message.text
 
     if user_id not in balances:
         balances[user_id] = 0
 
-    # 💰 إيداع
-    if text == "💰 إيداع رصيد":
+    # 🎮 الألعاب
+    if text == "🎮 الألعاب":
+        keyboard = [[g] for g in games.keys()]
         await update.message.reply_text(
-            "💳 طرق الدفع:\n\n"
-            "🔵 شام كاش:\n417504d810333979a7affca09578fa75\n\n"
-            "🟢 سيرياتيل كاش:\n00820198\n\n"
-            "📩 بعد التحويل أرسل صورة الإيصال هنا"
+            "🎮 اختر لعبة:",
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         )
 
-    # 🛍 المنتجات
-    elif text == "🛍 المنتجات":
+    # اختيار لعبة
+    elif text in games:
+        context.user_data["game"] = text
+        keyboard = [[p] for p in games[text]]
+
         await update.message.reply_text(
-            "🎮 قائمة الألعاب:\n\n"
-            "🔹 PUBG\n\n"
-            "اكتب: PUBG"
+            f"📦 اختر الباكج:",
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         )
 
-    # 🎮 PUBG
-    elif text == "PUBG":
-        await update.message.reply_text(
-            "🎮 شحن شدات PUBG:\n\n"
-            "60 UC\n325 UC\n660 UC\n\n"
-            "✏️ اكتب الكمية التي تريدها"
-        )
-
-    # اختيار باقة
-    elif text in ["60 UC", "325 UC", "660 UC"]:
-        orders[user_id] = {"product": text}
-        await update.message.reply_text("📥 أرسل ID اللاعب")
+    # اختيار باكج
+    elif "game" in context.user_data:
+        context.user_data["pack"] = text
+        await update.message.reply_text("📩 أرسل ID الحساب")
 
     # إدخال ID
-    elif user_id in orders:
-        product = orders[user_id]["product"]
-        player_id = text
+    elif "pack" in context.user_data:
+        game = context.user_data["game"]
+        pack = context.user_data["pack"]
 
-        # إرسال الطلب للأدمن
+        oid = str(order_id_counter)
+        order_id_counter += 1
+
+        orders[oid] = {
+            "user": user_id,
+            "game": game,
+            "pack": pack,
+            "id": text,
+            "status": "pending"
+        }
+
+        save()
+
+        keyboard = [[InlineKeyboardButton("✅ تم التنفيذ", callback_data=f"done_{oid}")]]
+
         await context.bot.send_message(
             chat_id=ADMIN_ID,
-            text=(
-                "🛒 طلب جديد\n\n"
-                f"👤 المستخدم: {user_id}\n"
-                f"🎮 ID: {player_id}\n"
-                f"📦 المنتج: {product}"
-            )
+            text=f"📥 طلب جديد\n\n🆔 #{oid}\n👤 {user_id}\n🎮 {game}\n📦 {pack}\n🆔 {text}",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-        await update.message.reply_text("✅ تم إرسال طلبك، سيتم التنفيذ قريباً")
+        await update.message.reply_text(f"✅ تم إرسال طلبك #{oid}")
 
-        del orders[user_id]
+        context.user_data.clear()
 
+    # 💰 رصيد
+    elif text == "💰 رصيدي":
+        await update.message.reply_text(f"💰 رصيدك: {balances[user_id]}")
+
+    # 📋 طلباتي
     elif text == "📋 طلباتي":
-        await update.message.reply_text("📦 سيتم عرض الطلبات لاحقاً")
+        msg = "📦 طلباتك:\n\n"
+        for oid, o in orders.items():
+            if o["user"] == user_id:
+                msg += f"#{oid} - {o['game']} - {o['pack']} - {o['status']}\n"
 
-    elif text == "👤 حسابي":
-        balance = balances[user_id]
-        await update.message.reply_text(f"💰 رصيدك الحالي: {balance} ل.س")
+        await update.message.reply_text(msg if msg != "📦 طلباتك:\n\n" else "لا يوجد طلبات")
 
-    elif text == "💬 الدعم الفني":
-        await update.message.reply_text("📞 تواصل معنا عبر @your_support")
+    # 📥 إيداع
+    elif text == "📥 إيداع":
+        await update.message.reply_text("📸 أرسل صورة التحويل")
 
-# 📸 استقبال الصور
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    photo = update.message.photo[-1]
+    # 💬 دعم
+    elif text == "💬 الدعم":
+        await update.message.reply_text("📞 تواصل @your_support")
 
-    await update.message.reply_text("✅ تم استلام الإيصال، سيتم مراجعته")
+# ===== الصور =====
+async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = str(update.message.from_user.id)
 
     await context.bot.send_photo(
         chat_id=ADMIN_ID,
-        photo=photo.file_id,
-        caption=f"📥 إيصال جديد\n👤 ID: {user_id}"
+        photo=update.message.photo[-1].file_id,
+        caption=f"💰 إيصال\n👤 {user_id}"
     )
 
-# 💰 إضافة رصيد
-async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id != ADMIN_ID:
-        return
+    await update.message.reply_text("✅ تم إرسال الإيصال")
 
-    try:
-        user_id = int(context.args[0])
-        amount = int(context.args[1])
-
-        if user_id not in balances:
-            balances[user_id] = 0
-
-        balances[user_id] += amount
-
-        await update.message.reply_text(f"✅ تم إضافة {amount} للمستخدم {user_id}")
-
-    except:
-        await update.message.reply_text("❌ استخدم:\n/add 123456 5000")
-
-# ✅ إنهاء الطلب (شحن تم)
+# ===== تنفيذ =====
 async def done(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.from_user.id != ADMIN_ID:
-        return
+    query = update.callback_query
+    await query.answer()
 
-    try:
-        user_id = int(context.args[0])
+    oid = query.data.replace("done_", "")
+
+    if oid in orders:
+        orders[oid]["status"] = "completed"
+        save()
+
+        user_id = orders[oid]["user"]
 
         await context.bot.send_message(
-            chat_id=user_id,
-            text="✅ تم شحن طلبك بنجاح 🎉"
+            chat_id=int(user_id),
+            text=f"🎉 تم تنفيذ طلبك #{oid}"
         )
 
-        await update.message.reply_text("✅ تم إبلاغ المستخدم")
+        await query.edit_message_text(f"✅ تم التنفيذ #{oid}")
+
+# ===== إضافة رصيد =====
+async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.message.from_user.id) != str(ADMIN_ID):
+        return
+
+    try:
+        user = str(context.args[0])
+        amount = int(context.args[1])
+
+        balances[user] = balances.get(user, 0) + amount
+        save()
+
+        await update.message.reply_text("✅ تم شحن الرصيد")
 
     except:
-        await update.message.reply_text("❌ استخدم:\n/done user_id")
+        await update.message.reply_text("❌ استخدم:\n/add id amount")
 
+# ===== تشغيل =====
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("add", add_balance))
-app.add_handler(CommandHandler("done", done))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+app.add_handler(CommandHandler("add", add))
+app.add_handler(MessageHandler(filters.TEXT, handle))
+app.add_handler(MessageHandler(filters.PHOTO, photo))
+app.add_handler(CallbackQueryHandler(done))
 
+print("🔥 BOT RUNNING")
 app.run_polling()
