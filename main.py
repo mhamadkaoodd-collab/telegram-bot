@@ -1,8 +1,12 @@
 import os
 import requests
 import asyncio
+import logging
 from telegram import ReplyKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+
+# تفعيل اللوج
+logging.basicConfig(level=logging.INFO)
 
 TOKEN = os.getenv("TOKEN")
 
@@ -159,7 +163,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # اختيار منتج
     elif text in products_cache:
         context.user_data["product"] = products_cache[text]
-
         await update.message.reply_text("📥 أرسل ID اللاعب:")
 
     # تنفيذ الطلب
@@ -263,16 +266,18 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ تم الشحن")
 
 # 🚀 تشغيل
-app = ApplicationBuilder().token(TOKEN).build()
+async def main():
+    app = ApplicationBuilder().token(TOKEN).build()
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("add", add_balance))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("add", add_balance))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-# تشغيل الإشعارات
-async def run():
     asyncio.create_task(check_orders(app))
-    app.run_polling(drop_pending_updates=True)
 
-asyncio.run(run())
+    print("✅ Bot started...")
+    await app.run_polling(drop_pending_updates=True)
+
+if __name__ == "__main__":
+    asyncio.run(main())
