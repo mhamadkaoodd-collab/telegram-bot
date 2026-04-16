@@ -1,25 +1,24 @@
 import json
 from telegram import *
 from telegram.ext import *
-from datetime import datetime
 
 TOKEN = "8260446715:AAE53tOR8UQ9vdrLDcBXptg8Y-tys61rNg8"
 ADMIN_ID = 8015961726
-SUPPORT_USERNAME = "@Star_IDOO796256363"
+SUPPORT = "@Star_IDOO796256363"
 
-SHAM_NUMBER = "417504d810333979a7affca09578fa75"
-SYRIATEL_NUMBER = "00820198"
+SHAM = "417504d810333979a7affca09578fa75"
+SYRIATEL = "00820198"
 
-# ===== DATA =====
+# ===== تحميل البيانات =====
 try:
     with open("data.json", "r") as f:
         data = json.load(f)
 except:
-    data = {"balances": {}, "orders": {}, "spent": {}, "counter": 1}
+    data = {"balances": {}, "orders": {}, "users": {}, "counter": 1}
 
 balances = data["balances"]
 orders = data["orders"]
-spent = data["spent"]
+users = data["users"]
 order_id = data["counter"]
 
 def save():
@@ -27,60 +26,84 @@ def save():
         json.dump({
             "balances": balances,
             "orders": orders,
-            "spent": spent,
+            "users": users,
             "counter": order_id
         }, f)
 
 # ===== المنتجات =====
 products = {
-    "PUBG MOBILE": {
+    "PUBG": {
         "60 UC": 0.9,
         "325 UC": 4.5,
-    },
-    "FREE FIRE": {
-        "100💎": 1,
     }
 }
 
 # ===== START =====
 async def start(update, context):
+    uid = str(update.message.from_user.id)
+
+    if uid not in users:
+        users[uid] = {
+            "spent": 0,
+            "orders": 0,
+            "joined": str(update.message.date)
+        }
+
     keyboard = [
         ["🛍 المنتجات"],
         ["💰 إيداع رصيد", "📦 طلباتي"],
         ["👤 حسابي", "💳 طرق الدفع"],
         ["📞 الدعم الفني"]
     ]
+
     await update.message.reply_text(
-        "⚡ مرحباً بك في متجر Haedr Shop\n👇 اختر من الأزرار:",
+        "⚡ مرحبا بك في متجر الشيخ\nاختر من الأسفل 👇",
         reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     )
 
-# ===== النصوص =====
+# ===== TEXT =====
 async def text(update, context):
     global order_id
-    uid = str(update.message.from_user.id)
-    name = update.message.from_user.full_name
-    username = update.message.from_user.username or "لا يوجد"
 
     msg = update.message.text
+    uid = str(update.message.from_user.id)
+
+    # ===== رجوع =====
+    if msg == "🔙 رجوع":
+        context.user_data.clear()
+        return await start(update, context)
 
     # ===== المنتجات =====
     if msg == "🛍 المنتجات":
-        keyboard = [[p] for p in products]
+        keyboard = [[KeyboardButton(p)] for p in products]
         keyboard.append(["🔙 رجوع"])
-        await update.message.reply_text("🎮 اختر اللعبة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-    elif msg in products:
+        return await update.message.reply_text(
+            "🎮 اختر لعبة:",
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        )
+
+    # ===== اختيار لعبة =====
+    if msg in products:
         context.user_data["game"] = msg
-        keyboard = [[p] for p in products[msg]]
+
+        keyboard = [[KeyboardButton(f"{p} - {products[msg][p]}$")] for p in products[msg]]
         keyboard.append(["🔙 رجوع"])
-        await update.message.reply_text("💎 اختر الشدة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-    elif "game" in context.user_data and msg in products[context.user_data["game"]]:
-        context.user_data["pack"] = msg
-        await update.message.reply_text("📩 أرسل ID الحساب")
+        return await update.message.reply_text(
+            "💎 اختر الشدة:",
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        )
 
-    elif "pack" in context.user_data and "id" not in context.user_data:
+    # ===== اختيار باقة =====
+    for game in products:
+        for pack in products[game]:
+            if msg.startswith(pack):
+                context.user_data["pack"] = pack
+                return await update.message.reply_text("📩 أرسل ID الحساب:")
+
+    # ===== إدخال ID =====
+    if "pack" in context.user_data and "id" not in context.user_data:
         context.user_data["id"] = msg
 
         game = context.user_data["game"]
@@ -88,39 +111,33 @@ async def text(update, context):
         price = products[game][pack]
         bal = balances.get(uid, 0)
 
-        after = round(bal - price, 2)
-
         keyboard = [
             ["✅ تأكيد الشراء"],
             ["❌ إلغاء"]
         ]
 
-        text_msg = f"""
-📦 تأكيد الطلب:
+        return await update.message.reply_text(
+            f"""📦 تأكيد الطلب:
 
 🎮 {game}
 💎 {pack}
 🆔 {msg}
 
 💰 السعر: {price}$
-💳 رصيدك الحالي: {bal}$
-📉 بعد الشراء: {after}$
+💳 رصيدك: {bal}$""",
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+        )
 
-هل تريد تأكيد الشراء؟
-"""
-        await update.message.reply_text(text_msg, reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
-
-    elif msg == "✅ تأكيد الشراء":
-        game = context.user_data.get("game")
-        pack = context.user_data.get("pack")
+    # ===== تأكيد =====
+    if msg == "✅ تأكيد الشراء":
+        game = context.user_data["game"]
+        pack = context.user_data["pack"]
         price = products[game][pack]
 
         if balances.get(uid, 0) < price:
-            await update.message.reply_text("❌ رصيدك غير كافي")
-            return
+            return await update.message.reply_text("❌ رصيدك غير كافي")
 
         balances[uid] -= price
-        spent[uid] = spent.get(uid, 0) + price
 
         oid = str(order_id)
         order_id += 1
@@ -129,128 +146,140 @@ async def text(update, context):
             "user": uid,
             "game": game,
             "pack": pack,
-            "id": context.user_data["id"]
+            "id": context.user_data["id"],
+            "status": "قيد التنفيذ"
         }
+
+        users[uid]["orders"] += 1
+        users[uid]["spent"] += price
 
         save()
 
-        await context.bot.send_message(ADMIN_ID,
-            f"📥 طلب جديد #{oid}\n{orders[oid]}")
+        # إرسال للأدمن
+        await context.bot.send_message(
+            ADMIN_ID,
+            f"""📥 طلب جديد #{oid}
 
-        await update.message.reply_text(f"✅ تم تنفيذ الطلب رقم #{oid}")
-        context.user_data.clear()
+👤 المستخدم: {uid}
+🎮 اللعبة: {game}
+💎 الباقة: {pack}
+🆔 ID: {context.user_data['id']}
+💰 السعر: {price}$"""
+        )
 
-    elif msg == "❌ إلغاء":
         context.user_data.clear()
-        await update.message.reply_text("❌ تم الإلغاء")
+        return await update.message.reply_text("✅ تم إرسال طلبك")
+
+    if msg == "❌ إلغاء":
+        context.user_data.clear()
+        return await update.message.reply_text("❌ تم الإلغاء")
 
     # ===== الإيداع =====
-    elif msg == "💰 إيداع رصيد":
+    if msg == "💰 إيداع رصيد":
         keyboard = [
-            ["💳 شام كاش", "📱 سيريتيل كاش"],
+            ["💳 شام كاش", "📱 سيرياتيل كاش"],
             ["🔙 رجوع"]
         ]
-        await update.message.reply_text("اختر طريقة الدفع:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+        return await update.message.reply_text("اختر الطريقة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-    elif msg == "💳 شام كاش":
-        context.user_data["deposit"] = "sham"
-        await update.message.reply_text(f"""💳 رقم شام كاش:
-`{SHAM_NUMBER}`
+    if msg == "💳 شام كاش":
+        context.user_data["deposit"] = "شام كاش"
+        return await update.message.reply_text(f"""💳 رقم شام كاش:
+`{SHAM}`
 
-📩 اكتب المبلغ الذي تريد شحنه:
-""", parse_mode="Markdown")
+✉️ اكتب المبلغ:""", parse_mode="Markdown")
 
-    elif msg == "📱 سيريتيل كاش":
-        context.user_data["deposit"] = "syriatel"
-        await update.message.reply_text(f"""📱 رقم سيريتيل:
-`{SYRIATEL_NUMBER}`
+    if msg == "📱 سيرياتيل كاش":
+        context.user_data["deposit"] = "سيرياتيل"
+        return await update.message.reply_text(f"""📱 رقم سيرياتيل:
+`{SYRIATEL}`
 
-📩 اكتب المبلغ الذي تريد شحنه:
-""", parse_mode="Markdown")
+✉️ اكتب المبلغ:""", parse_mode="Markdown")
 
-    elif "deposit" in context.user_data and "amount" not in context.user_data:
-        try:
-            amount = float(msg)
-            context.user_data["amount"] = amount
-            await update.message.reply_text("📸 أرسل صورة الإيصال الآن")
-        except:
-            await update.message.reply_text("❌ اكتب رقم فقط")
+    # ===== إدخال المبلغ =====
+    if "deposit" in context.user_data and "amount" not in context.user_data:
+        if not msg.replace(".", "").isdigit():
+            return await update.message.reply_text("❌ اكتب رقم فقط")
 
-    # ===== طلباتي =====
-    elif msg == "📦 طلباتي":
-        user_orders = [o for o in orders.values() if o["user"] == uid]
-
-        if not user_orders:
-            await update.message.reply_text("📭 لا يوجد طلبات")
-            return
-
-        text_msg = "📦 طلباتك:\n\n"
-        for o in user_orders:
-            text_msg += f"{o['game']} - {o['pack']} - ID: {o['id']}\n"
-
-        await update.message.reply_text(text_msg)
+        context.user_data["amount"] = msg
+        return await update.message.reply_text("📸 أرسل صورة التحويل")
 
     # ===== حسابي =====
-    elif msg == "👤 حسابي":
-        bal = round(balances.get(uid, 0), 2)
-        sp = round(spent.get(uid, 0), 2)
+    if msg == "👤 حسابي":
+        user = users.get(uid, {"spent":0,"orders":0})
+        bal = balances.get(uid, 0)
 
-        text_msg = f"""👤 معلومات حسابي
+        return await update.message.reply_text(
+            f"""👤 معلومات حسابك
 
-🆔 ID: {uid}
-👤 الاسم: {name}
-📛 اليوزر: @{username}
+🆔 {uid}
+💰 الرصيد: {bal}$
+💸 المصروف: {user['spent']}$
+📦 الطلبات: {user['orders']}"""
+        )
 
-💰 الرصيد: ${bal}
-💸 المصروف: ${sp}
+    # ===== طلباتي =====
+    if msg == "📦 طلباتي":
+        text_orders = ""
+        for oid, o in orders.items():
+            if o["user"] == uid:
+                text_orders += f"\n#{oid} | {o['game']} | {o['pack']} | {o['status']}"
 
-📦 الطلبات: {len([o for o in orders.values() if o['user']==uid])}
-📅 تاريخ الانضمام: {datetime.now().strftime('%Y-%m-%d')}
-"""
-        await update.message.reply_text(text_msg)
+        return await update.message.reply_text(text_orders or "لا يوجد طلبات")
 
     # ===== طرق الدفع =====
-    elif msg == "💳 طرق الدفع":
-        await update.message.reply_text(f"""💳 طرق الدفع:
+    if msg == "💳 طرق الدفع":
+        return await update.message.reply_text(
+            f"""💳 طرق الدفع:
 
 شام كاش:
-`{SHAM_NUMBER}`
+`{SHAM}`
 
-سيريتيل:
-`{SYRIATEL_NUMBER}`
-""", parse_mode="Markdown")
+سيرياتيل:
+`{SYRIATEL}`""",
+            parse_mode="Markdown"
+        )
 
     # ===== دعم =====
-    elif msg == "📞 الدعم الفني":
-        await update.message.reply_text(f"📞 تواصل مباشرة:\n{SUPPORT_USERNAME}")
+    if msg == "📞 الدعم الفني":
+        return await update.message.reply_text(f"راسل الدعم:\n{SUPPORT}")
 
-# ===== صورة =====
+# ===== الصورة (طلب الشحن) =====
 async def photo(update, context):
+    uid = str(update.message.from_user.id)
+
     if "amount" not in context.user_data:
         return
 
-    uid = str(update.message.from_user.id)
     amount = context.user_data["amount"]
+    method = context.user_data["deposit"]
 
-    keyboard = [[
-        InlineKeyboardButton("✅ قبول", callback_data=f"ok_{uid}_{amount}"),
-        InlineKeyboardButton("❌ رفض", callback_data=f"no_{uid}")
-    ]]
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ قبول", callback_data=f"ok_{uid}_{amount}"),
+            InlineKeyboardButton("❌ رفض", callback_data=f"no_{uid}")
+        ]
+    ])
 
     await context.bot.send_photo(
         ADMIN_ID,
         update.message.photo[-1].file_id,
-        caption=f"📥 طلب شحن\n👤 {uid}\n💰 {amount}$",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        caption=f"""📥 طلب شحن
+
+👤 {uid}
+💳 {method}
+💰 {amount}$""",
+        reply_markup=keyboard
     )
 
-    await update.message.reply_text("⏳ تم إرسال الطلب للإدارة")
+    await update.message.reply_text("⏳ تم إرسال طلبك")
     context.user_data.clear()
 
-# ===== الأدمن =====
+# ===== الأزرار (قبول/رفض) =====
 async def button(update, context):
     query = update.callback_query
     await query.answer()
+
     data = query.data
 
     if data.startswith("ok_"):
@@ -260,15 +289,15 @@ async def button(update, context):
         balances[uid] = balances.get(uid, 0) + amount
         save()
 
-        await context.bot.send_message(uid, f"✅ تم شحن {amount}$ إلى حسابك")
+        await context.bot.send_message(uid, f"✅ تم شحن {amount}$")
         await query.edit_message_caption("✅ تم القبول")
 
     elif data.startswith("no_"):
         uid = data.split("_")[1]
-        await context.bot.send_message(uid, "❌ تم رفض الطلب")
+        await context.bot.send_message(uid, "❌ تم الرفض")
         await query.edit_message_caption("❌ تم الرفض")
 
-# ===== RUN =====
+# ===== تشغيل =====
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
