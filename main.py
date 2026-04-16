@@ -22,7 +22,6 @@ API_TOKEN = "dxupxt7yced8110nyh1buuos1"
 BASE_URL = "https://mega-game.net/api"
 
 balances = {}
-products_cache = {}
 
 # الكيبورد
 keyboard = [
@@ -42,33 +41,62 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=markup
     )
 
-# جلب المنتجات من API
+# جلب المنتجات (نسخة ذكية)
 def get_products():
-    url = f"{BASE_URL}/products"
     headers = {
         "api-token": API_TOKEN,
         "Accept": "application/json"
     }
 
-    try:
-        res = requests.get(url, headers=headers)
-        data = res.json()
-        return data.get("data", [])
-    except Exception as e:
-        print("API Error:", e)
-        return []
+    endpoints = [
+        "/products",
+        "/services",
+        "/items"
+    ]
+
+    for ep in endpoints:
+        try:
+            url = BASE_URL + ep
+            res = requests.get(url, headers=headers, timeout=10)
+
+            print("TRY:", url)
+            print("STATUS:", res.status_code)
+            print("RESPONSE:", res.text[:200])
+
+            if res.status_code == 200:
+                data = res.json()
+
+                if isinstance(data, dict):
+                    if "data" in data:
+                        return data["data"]
+                    elif "products" in data:
+                        return data["products"]
+                    else:
+                        return list(data.values())[0]
+
+                elif isinstance(data, list):
+                    return data
+
+        except Exception as e:
+            print("ERROR:", e)
+
+    return []
 
 # عرض المتجر
 async def show_store(update: Update, context: ContextTypes.DEFAULT_TYPE):
     products = get_products()
 
     if not products:
-        await update.message.reply_text("❌ ما في منتجات حالياً")
+        await update.message.reply_text("❌ ما في منتجات حالياً (أو API غلط)")
         return
 
     text = "🛒 المنتجات:\n\n"
+
     for p in products[:10]:
-        text += f"🔹 {p['name']}\n💵 السعر: {p['price']}\n\n"
+        name = p.get("name", "بدون اسم")
+        price = p.get("price", "؟")
+
+        text += f"🔹 {name}\n💵 السعر: {price}\n\n"
 
     await update.message.reply_text(text)
 
