@@ -19,7 +19,7 @@ TOKEN = os.getenv("TOKEN")
 ADMIN_ID = 8015961726
 
 API_TOKEN = "dxupxt7yced8110nyh1buuos1"
-BASE_URL = "https://mega-game.net/api"
+BASE_URL = "https://mega-game.net/api/fast"
 
 balances = {}
 
@@ -37,57 +37,46 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     balances[user_id] = balances.get(user_id, 0)
 
     await update.message.reply_text(
-        "أهلاً بك 👋\nاختر من القائمة:",
+        "✨ أهلاً بك في متجر الشيخ\nاختر من القائمة:",
         reply_markup=markup
     )
 
-# جلب المنتجات (نسخة ذكية)
+# جلب المنتجات
 def get_products():
+    url = f"{BASE_URL}/products"
     headers = {
         "api-token": API_TOKEN,
         "Accept": "application/json"
     }
 
-    endpoints = [
-        "/products",
-        "/services",
-        "/items"
-    ]
+    try:
+        res = requests.get(url, headers=headers)
 
-    for ep in endpoints:
-        try:
-            url = BASE_URL + ep
-            res = requests.get(url, headers=headers, timeout=10)
+        print("STATUS:", res.status_code)
+        print("RESPONSE:", res.text)
 
-            print("TRY:", url)
-            print("STATUS:", res.status_code)
-            print("RESPONSE:", res.text[:200])
+        data = res.json()
 
-            if res.status_code == 200:
-                data = res.json()
+        # دعم كل أنواع الردود
+        if isinstance(data, list):
+            return data
+        elif "data" in data:
+            return data["data"]
+        elif "products" in data:
+            return data["products"]
+        else:
+            return []
 
-                if isinstance(data, dict):
-                    if "data" in data:
-                        return data["data"]
-                    elif "products" in data:
-                        return data["products"]
-                    else:
-                        return list(data.values())[0]
-
-                elif isinstance(data, list):
-                    return data
-
-        except Exception as e:
-            print("ERROR:", e)
-
-    return []
+    except Exception as e:
+        print("API Error:", e)
+        return []
 
 # عرض المتجر
 async def show_store(update: Update, context: ContextTypes.DEFAULT_TYPE):
     products = get_products()
 
     if not products:
-        await update.message.reply_text("❌ ما في منتجات حالياً (أو API غلط)")
+        await update.message.reply_text("❌ ما في منتجات حالياً")
         return
 
     text = "🛒 المنتجات:\n\n"
@@ -95,7 +84,6 @@ async def show_store(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for p in products[:10]:
         name = p.get("name", "بدون اسم")
         price = p.get("price", "؟")
-
         text += f"🔹 {name}\n💵 السعر: {price}\n\n"
 
     await update.message.reply_text(text)
