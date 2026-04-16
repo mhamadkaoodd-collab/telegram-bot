@@ -1,21 +1,107 @@
+import os
+import asyncio
+import requests
+import logging
+
+from telegram import ReplyKeyboardMarkup, Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+
+# تفعيل اللوج
+logging.basicConfig(level=logging.INFO)
+
+# ⚙️ الإعدادات
+TOKEN = os.getenv("TOKEN")  # لازم تحطه بـ Railway Variables
+
+ADMIN_ID = 8015961726
+
+API_TOKEN = "dxupxt7yced8110nyh1buuos1"
+BASE_URL = "https://mega-game.net/api/fast"
+
+balances = {}
+products_cache = {}
+
+USD_RATE = 13600
+
+# 🏠 القائمة الرئيسية
+def main_menu(user_id):
+    keyboard = [
+        ["💰 شحن الرصيد"],
+        ["🛍️ المتجر", "📦 طلباتي"],
+        ["👤 حسابي", "📞 الدعم"]
+    ]
+
+    if user_id == ADMIN_ID:
+        keyboard.append(["📊 لوحة التحكم"])
+
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# 🚀 /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    balances.setdefault(user_id, 0)
+
+    await update.message.reply_text(
+        "✨ أهلاً بك في متجر الشيخ\n\nاختر من القائمة:",
+        reply_markup=main_menu(user_id)
+    )
+
+# 🔄 جلب المنتجات
+def get_products():
+    try:
+        res = requests.get(
+            f"{BASE_URL}/products",
+            headers={"api-token": API_TOKEN}
+        ).json()
+
+        print(res)  # 🔥 مهم للتشخيص
+
+        if not res.get("err"):
+            return res["data"]["products"]
+
+        return []
+    except Exception as e:
+        print("ERROR PRODUCTS:", e)
+        return []
+
+# 🛒 تنفيذ الطلب
+def create_order(product_id, player_id):
+    try:
+        res = requests.post(
+            f"{BASE_URL}/order",
+            headers={"api-token": API_TOKEN},
+            json={
+                "product_id": product_id,
+                "count": 1,
+                "player_id": {"Player_ID": player_id}
+            }
+        ).json()
+        return res
+    except Exception as e:
+        print("ORDER ERROR:", e)
+        return {"err": True}
+
+# 💬 الرسائل
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     text = update.message.text
 
     balances.setdefault(user_id, 0)
 
+    # 💰 شحن
     if text == "💰 شحن الرصيد":
         await update.message.reply_text(
             "💳 طرق الدفع:\n\n"
-            "شام كاش:\n417504d810333979a7affca09578fa75\n\n"
-            "سيرياتيل:\n00820198"
+            "🔹 شام كاش:\n417504d810333979a7affca09578fa75\n\n"
+            "🔹 سيرياتيل:\n00820198\n\n"
+            "📸 أرسل صورة الإيصال"
         )
 
+    # 🛍️ المتجر
     elif text == "🛍️ المتجر":
         products = get_products()
 
         if not products:
-            await update.message.reply_text("❌ المتجر فاضي أو API خربان")
+            await update.message.reply_text("❌ المتجر فاضي أو API فيه مشكلة")
             return
 
         keyboard = []
@@ -23,21 +109,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         for p in products:
             name = p.get("name", "منتج")
-            price = p.get("price", 0)
+            price = round(float(p.get("price", 0)), 2)
 
             button = f"{name} - ${price}"
             products_cache[button] = p
             keyboard.append([button])
 
         await update.message.reply_text(
-            "🛒 اختر منتج:",
+            "🛒 اختر المنتج:",
             reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
         )
 
+    # اختيار منتج
     elif text in products_cache:
         context.user_data["product"] = products_cache[text]
-        await update.message.reply_text("📥 ارسل ID اللاعب")
+        await update.message.reply_text("📥 أرسل ID اللاعب")
 
+    # تنفيذ الطلب
     elif "product" in context.user_data:
         product = context.user_data["product"]
         player_id = text
@@ -45,7 +133,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         price = int(float(product["price"]) * USD_RATE)
 
         if balances[user_id] < price:
-            await update.message.reply_text("❌ رصيدك ما بكفي")
+            await update.message.reply_text("❌ رصيدك غير كافي")
             return
 
         balances[user_id] -= price
@@ -53,21 +141,78 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         res = create_order(product["id"], player_id)
 
         if not res.get("err"):
-            await update.message.reply_text("✅ تم الطلب")
+            await update.message.reply_text("✅ تم تنفيذ الطلب 🎉")
         else:
             balances[user_id] += price
             await update.message.reply_text("❌ فشل الطلب")
 
         del context.user_data["product"]
 
+    # 📦 طلباتي
     elif text == "📦 طلباتي":
         await update.message.reply_text("📦 قريباً")
 
+    # 👤 حسابي
     elif text == "👤 حسابي":
-        await update.message.reply_text(f"💰 رصيدك: {balances[user_id]}")
+        await update.message.reply_text(
+            f"💰 رصيدك: {balances[user_id]} ل.س"
+        )
 
+    # 📞 دعم
     elif text == "📞 الدعم":
-        await update.message.reply_text("راسلنا: @your_support")
+        await update.message.reply_text("📞 تواصل: @your_support")
+
+    # 👑 لوحة التحكم
+    elif text == "📊 لوحة التحكم" and user_id == ADMIN_ID:
+        await update.message.reply_text(
+            f"👥 المستخدمين: {len(balances)}\n"
+            f"💰 مجموع الأرصدة: {sum(balances.values())}"
+        )
 
     else:
         await update.message.reply_text("❗ اختر من القائمة")
+
+# 📸 استقبال صور
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+
+    await update.message.reply_text("✅ تم استلام الإيصال")
+
+    await context.bot.send_photo(
+        chat_id=ADMIN_ID,
+        photo=update.message.photo[-1].file_id,
+        caption=f"📥 إيصال من {user_id}"
+    )
+
+# 💰 إضافة رصيد (أمر أدمن)
+async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        return
+
+    try:
+        user_id = int(context.args[0])
+        amount = int(context.args[1])
+
+        balances.setdefault(user_id, 0)
+        balances[user_id] += amount
+
+        await context.bot.send_message(chat_id=user_id, text=f"💰 تم شحن {amount}")
+        await update.message.reply_text("✅ تم الشحن")
+
+    except:
+        await update.message.reply_text("❌ الاستخدام:\n/add user_id amount")
+
+# 🚀 تشغيل
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("add", add_balance))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+    print("✅ Bot started...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
