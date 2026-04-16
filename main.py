@@ -1,13 +1,22 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+def get_products():
+    url = f"{BASE_URL}/products"
+    headers = {
+        "api-token": API_TOKEN,
+        "Accept": "application/json"
+    }
 
-TOKEN = "حط_التوكن_هون"
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        data = res.json()
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ البوت شغال")
+        print("DEBUG:", data)  # مهم
 
-app = ApplicationBuilder().token(TOKEN).build()
-app.add_handler(CommandHandler("start", start))
+        # 👇 هون التصحيح
+        if not data.get("err"):
+            return data.get("data", {}).get("products", [])
 
-print("Bot started...")
-app.run_polling()
+        return []
+
+    except Exception as e:
+        print("API ERROR:", e)
+        return []
