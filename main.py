@@ -24,6 +24,24 @@ def save():
 games = ["PUBG MOBILE", "FREE FIRE", "CLASH ROYALE"]
 apps = ["TikTok", "Google Play"]
 
+pubg_packs = [
+    "💎 60 UC",
+    "💎 325 UC",
+    "💎 660 UC",
+    "💎 1800 UC",
+    "💎 3850 UC",
+    "💎 8100 UC"
+]
+
+prices = {
+    "💎 60 UC": 1,
+    "💎 325 UC": 5,
+    "💎 660 UC": 10,
+    "💎 1800 UC": 25,
+    "💎 3850 UC": 50,
+    "💎 8100 UC": 100
+}
+
 # ===== START =====
 async def start(update, context):
     keyboard = [
@@ -31,12 +49,30 @@ async def start(update, context):
         ["💰 إيداع", "📦 طلباتي"],
         ["👤 حسابي", "💬 الدعم"]
     ]
+    await update.message.reply_text("🔥 متجر VIP LEVEL 11", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+
+# ===== حسابي (احترافي) =====
+async def account(update, context):
+    user = update.message.from_user
+    uid = str(user.id)
+
+    bal = balances.get(uid, 0)
+    total = len([o for o in orders.values() if o["user"] == uid])
+
     await update.message.reply_text(
-        "🔥 متجر VIP LEVEL 11",
-        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+f"""👤 معلومات حسابي
+
+🆔 ID: {uid}
+👤 @{user.username if user.username else 'لا يوجد'}
+
+💰 الرصيد الحالي: {bal}$
+📦 الطلبات: {total}
+
+🏆 المستوى: ذهبي
+🎁 الخصم: 4%"""
     )
 
-# ===== PRODUCTS =====
+# ===== المنتجات =====
 async def products(update, context):
     keyboard = [
         ["🎮 الألعاب", "📱 التطبيقات"],
@@ -45,39 +81,66 @@ async def products(update, context):
     ]
     await update.message.reply_text("🛍 اختر القسم:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-# ===== MENUS =====
+# ===== الألعاب =====
 async def games_menu(update, context):
     keyboard = [[g] for g in games] + [["🔙 رجوع"]]
     await update.message.reply_text("🎮 اختر لعبة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
+# ===== التطبيقات =====
 async def apps_menu(update, context):
     keyboard = [[a] for a in apps] + [["🔙 رجوع"]]
     await update.message.reply_text("📱 اختر تطبيق:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
 
-# ===== SELECT =====
+# ===== اختيار لعبة =====
 async def select_item(update, context):
-    context.user_data["item"] = update.message.text
-    keyboard = [["💰 10", "💰 25"], ["🔙 رجوع"]]
-    await update.message.reply_text("اختر الباقة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+    item = update.message.text
+    context.user_data["item"] = item
 
+    if item == "PUBG MOBILE":
+        keyboard = [
+            ["💎 60 UC", "💎 325 UC"],
+            ["💎 660 UC", "💎 1800 UC"],
+            ["💎 3850 UC", "💎 8100 UC"],
+            ["🔙 رجوع"]
+        ]
+        await update.message.reply_text("اختر الشدة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+    else:
+        keyboard = [["💰 10", "💰 25"], ["🔙 رجوع"]]
+        await update.message.reply_text("اختر الباقة:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True))
+
+# ===== اختيار باقة =====
 async def select_pack(update, context):
     context.user_data["pack"] = update.message.text
     await update.message.reply_text("📩 أرسل ID الحساب")
 
+# ===== تأكيد =====
 async def confirm(update, context):
     context.user_data["id"] = update.message.text
+
     await update.message.reply_text(
-        f"📦 تأكيد الطلب:\n{context.user_data['item']}\n{context.user_data['pack']}\nID: {context.user_data['id']}\n\nاكتب (تأكيد)"
+f"""📦 تأكيد الطلب:
+
+🎮 {context.user_data['item']}
+{context.user_data['pack']}
+🆔 {context.user_data['id']}
+
+✍️ اكتب (تأكيد)"""
     )
 
-# ===== SEND ORDER =====
+# ===== إرسال الطلب =====
 async def send_order(update, context):
     global order_id
 
-    if "item" not in context.user_data:
+    uid = str(update.message.from_user.id)
+    pack = context.user_data["pack"]
+
+    price = prices.get(pack, 5)
+
+    if balances.get(uid, 0) < price:
+        await update.message.reply_text("❌ رصيدك غير كافي")
         return
 
-    uid = str(update.message.from_user.id)
+    balances[uid] -= price
 
     oid = str(order_id)
     order_id += 1
@@ -85,9 +148,8 @@ async def send_order(update, context):
     orders[oid] = {
         "user": uid,
         "item": context.user_data["item"],
-        "pack": context.user_data["pack"],
-        "id": context.user_data["id"],
-        "status": "pending"
+        "pack": pack,
+        "id": context.user_data["id"]
     }
 
     save()
@@ -96,32 +158,28 @@ async def send_order(update, context):
 
     await context.bot.send_message(
         chat_id=ADMIN_ID,
-        text=f"📥 طلب جديد #{oid}\n{orders[oid]}",
+        text=f"📥 طلب #{oid}\n{orders[oid]}",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
     await update.message.reply_text(f"✅ تم إرسال طلبك #{oid}")
     context.user_data.clear()
 
-# ===== تنفيذ الطلب =====
+# ===== تنفيذ =====
 async def done(update, context):
     query = update.callback_query
     await query.answer()
 
     oid = query.data.split("_")[1]
 
-    if oid in orders:
-        orders[oid]["status"] = "done"
-        save()
+    await context.bot.send_message(
+        chat_id=int(orders[oid]["user"]),
+        text=f"🎉 تم تنفيذ طلبك #{oid}"
+    )
 
-        await context.bot.send_message(
-            chat_id=int(orders[oid]["user"]),
-            text=f"🎉 تم تنفيذ طلبك #{oid}"
-        )
+    await query.edit_message_text(f"✅ تم تنفيذ #{oid}")
 
-        await query.edit_message_text(f"✅ تم تنفيذ الطلب #{oid}")
-
-# ===== DEPOSIT =====
+# ===== إيداع =====
 async def deposit(update, context):
     keyboard = [
         ["💳 شام كاش", "📱 سيرياتيل كاش"],
@@ -131,15 +189,17 @@ async def deposit(update, context):
 
 # ===== شام =====
 async def sham(update, context):
-    await update.message.reply_text("📋 انسخ العنوان:")
-    await update.message.reply_text("417504d810333979a7affca09578fa75")
+    await update.message.reply_text("📌 العنوان:")
+    await update.message.reply_text("f30ccc46c72d2d3850e23de000c3b2156")
+    await update.message.reply_text("📩 أرسل صورة أو رقم العملية")
 
 # ===== سيرياتيل =====
 async def syriatel(update, context):
-    await update.message.reply_text("📋 انسخ الرقم:")
-    await update.message.reply_text("00820198")
+    await update.message.reply_text("📌 الرقم:")
+    await update.message.reply_text("09XXXXXXXX")
+    await update.message.reply_text("📩 أرسل صورة أو رقم العملية")
 
-# ===== PHOTO =====
+# ===== صورة =====
 async def photo(update, context):
     user = update.message.from_user
     uid = str(user.id)
@@ -152,13 +212,13 @@ async def photo(update, context):
     await context.bot.send_photo(
         chat_id=ADMIN_ID,
         photo=update.message.photo[-1].file_id,
-        caption=f"📥 إيصال\n👤 {uid}",
+        caption=f"💰 طلب إيداع\n👤 {uid}",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
     await update.message.reply_text("⏳ جاري المراجعة...")
 
-# ===== قبول =====
+# ===== أزرار الأدمن =====
 async def buttons(update, context):
     query = update.callback_query
     await query.answer()
@@ -192,18 +252,6 @@ async def add_balance(update, context):
     except:
         await update.message.reply_text("❌ رقم فقط")
 
-# ===== حساب =====
-async def account(update, context):
-    user = update.message.from_user
-    uid = str(user.id)
-
-    bal = balances.get(uid, 0)
-    total = len([o for o in orders.values() if o["user"] == uid])
-
-    await update.message.reply_text(
-        f"👤 حسابك\n🆔 {uid}\n👤 @{user.username if user.username else 'لا يوجد'}\n💰 {bal}$\n📦 الطلبات: {total}"
-    )
-
 # ===== HANDLE =====
 async def handle(update, context):
     text = update.message.text
@@ -220,7 +268,7 @@ async def handle(update, context):
     elif text in games or text in apps:
         await select_item(update, context)
 
-    elif "💰" in text:
+    elif "UC" in text or "💰" in text:
         await select_pack(update, context)
 
     elif text == "تأكيد":
@@ -256,5 +304,5 @@ app.add_handler(MessageHandler(filters.PHOTO, photo))
 app.add_handler(CallbackQueryHandler(done, pattern="done_"))
 app.add_handler(CallbackQueryHandler(buttons, pattern="ok_|no_"))
 
-print("🔥 LEVEL 11 RUNNING")
+print("🔥 BOT RUNNING LEVEL 11")
 app.run_polling()
