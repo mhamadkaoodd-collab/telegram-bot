@@ -232,10 +232,18 @@ async def button(update, context):
             "user": uid,
             "game": game,
             "pack": pack,
-            "id": context.user_data["id"]
+            "id": context.user_data["id"],
+            "status": "pending"
         }
 
         save()
+
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ تم الشحن", callback_data=f"done_{oid}_{uid}"),
+                InlineKeyboardButton("❌ رفض", callback_data=f"reject_{oid}_{uid}")
+            ]
+        ])
 
         await context.bot.send_message(
             ADMIN_ID,
@@ -245,7 +253,8 @@ async def button(update, context):
 🎮 {game}
 💎 {pack}
 🆔 {context.user_data["id"]}
-💰 {price}$"""
+💰 {price}$""",
+            reply_markup=keyboard
         )
 
         await query.edit_message_text(f"✅ تم الطلب #{oid}")
@@ -270,6 +279,29 @@ async def button(update, context):
         uid = data.split("_")[1]
         await context.bot.send_message(uid, "❌ تم رفض الطلب")
         await query.edit_message_caption("❌ تم الرفض")
+
+    # ===== تنفيذ الطلب =====
+    elif data.startswith("done_"):
+        _, oid, uid = data.split("_")
+
+        if oid in orders:
+            orders[oid]["status"] = "done"
+
+        save()
+
+        await context.bot.send_message(uid, f"✅ تم تنفيذ طلبك #{oid}")
+        await query.edit_message_text(f"✅ تم الشحن #{oid}")
+
+    elif data.startswith("reject_"):
+        _, oid, uid = data.split("_")
+
+        if oid in orders:
+            orders[oid]["status"] = "rejected"
+
+        save()
+
+        await context.bot.send_message(uid, "❌ تم رفض الطلب")
+        await query.edit_message_text("❌ تم الرفض")
 
 # ===== تشغيل =====
 app = ApplicationBuilder().token(TOKEN).build()
