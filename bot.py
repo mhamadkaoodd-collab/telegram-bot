@@ -12,9 +12,10 @@ BASE_URL = "https://mega-game.net/api/fast"
 
 balances = {}
 orders = {}
-products_cache = {}  # تخزين المنتجات مؤقت
+products_cache = {}
 
-USD_RATE = 13600  # سعر الدولار
+USD_RATE = 13600
+
 
 # 🟢 القائمة الرئيسية
 def main_menu():
@@ -37,38 +38,48 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# 🔥 جلب المنتجات من API
+# 🔥 جلب المنتجات
 def get_products():
-    url = f"{BASE_URL}/products"
-    headers = {
-        "api-token": API_TOKEN,
-        "Accept": "application/json"
-    }
+    try:
+        url = f"{BASE_URL}/products"
+        headers = {
+            "api-token": API_TOKEN,
+            "Accept": "application/json"
+        }
 
-    res = requests.get(url, headers=headers).json()
+        res = requests.get(url, headers=headers).json()
 
-    if not res["err"]:
-        return res["data"]["products"]
-    return []
+        if not res["err"]:
+            return res["data"]["products"]
+        return []
+
+    except Exception as e:
+        print("API ERROR:", e)
+        return []
 
 
 # 🔥 تنفيذ الطلب
 def create_order(product_id, player_id):
-    url = f"{BASE_URL}/order"
-    headers = {
-        "api-token": API_TOKEN,
-        "Accept": "application/json"
-    }
-
-    data = {
-        "product_id": product_id,
-        "count": 1,
-        "player_id": {
-            "Player_ID": player_id
+    try:
+        url = f"{BASE_URL}/order"
+        headers = {
+            "api-token": API_TOKEN,
+            "Accept": "application/json"
         }
-    }
 
-    return requests.post(url, json=data, headers=headers).json()
+        data = {
+            "product_id": product_id,
+            "count": 1,
+            "player_id": {
+                "Player_ID": player_id
+            }
+        }
+
+        return requests.post(url, json=data, headers=headers).json()
+
+    except Exception as e:
+        print("ORDER ERROR:", e)
+        return {"err": True}
 
 
 # 🧠 التحكم بالرسائل
@@ -88,9 +99,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "📩 أرسل صورة الإيصال"
         )
 
-    # 🛍 المنتجات (جلب مباشر)
+    # 🛍 المنتجات
     elif text == "🛍 المنتجات":
         products = get_products()
+
+        if not products:
+            await update.message.reply_text("❌ فشل تحميل المنتجات")
+            return
 
         keyboard = []
         products_cache.clear()
@@ -99,9 +114,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             name = p["name"]
             price_usd = round(float(p["price"]), 2)
 
-            products_cache[name] = p
+            button_text = f"{name} - ${price_usd}"
 
-            keyboard.append([f"{name} - ${price_usd}"])
+            products_cache[button_text] = p
+            keyboard.append([button_text])
 
         await update.message.reply_text(
             "🛒 اختر المنتج:",
@@ -115,7 +131,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text("📥 أرسل ID اللاعب")
 
-    # 🧾 إدخال ID اللاعب
+    # 🧾 إدخال ID
     elif "selected_product" in context.user_data:
         product = context.user_data["selected_product"]
         player_id = text
@@ -127,28 +143,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ رصيدك غير كافي")
             return
 
-        # خصم الرصيد
+        # خصم
         balances[user_id] -= price_syp
 
-        # تنفيذ الطلب
+        # تنفيذ
         res = create_order(product["id"], player_id)
 
-        if not res["err"]:
+        if not res.get("err"):
             await update.message.reply_text("✅ تم تنفيذ الطلب بنجاح")
         else:
-            await update.message.reply_text("❌ فشل الطلب")
+            balances[user_id] += price_syp
+            await update.message.reply_text("❌ فشل الطلب وتم إعادة الرصيد")
 
-        # حذف المنتج المختار
         del context.user_data["selected_product"]
 
     # 📋 طلباتي
     elif text == "📋 طلباتي":
-        await update.message.reply_text("📦 الطلبات تتم من النظام مباشرة")
+        await update.message.reply_text("📦 الطلبات تتم تلقائياً من النظام")
 
     # 👤 حسابي
     elif text == "👤 حسابي":
         await update.message.reply_text(f"💰 رصيدك: {balances[user_id]:.0f} ل.س")
 
+    # 💬 دعم
     elif text == "💬 الدعم الفني":
         await update.message.reply_text("📞 @your_support")
 
@@ -188,7 +205,7 @@ async def add_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("/add id amount")
 
 
-# تشغيل البوت
+# 🚀 تشغيل
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
