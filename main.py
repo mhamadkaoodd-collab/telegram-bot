@@ -1,21 +1,13 @@
-def get_products():
-    url = f"{BASE_URL}/products"
-    headers = {
-        "api-token": API_TOKEN,
-        "Accept": "application/json"
-    }
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-    try:
-        res = requests.get(url, headers=headers)
+TOKEN = "حط_التوكن_هون"
 
-        print("STATUS:", res.status_code)
-        print("RESPONSE:", res.text)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("✅ البوت شغال")
 
-        data = res.json()
+app = ApplicationBuilder().token(TOKEN).build()
+app.add_handler(CommandHandler("start", start))
 
-        # 👇 جرب نرجع كل شي بدون فلترة
-        return data
-
-    except Exception as e:
-        print("API Error:", e)
-        return []
+print("Bot started...")
+app.run_polling()
