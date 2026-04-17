@@ -5,13 +5,12 @@ import threading
 from telegram import *
 from telegram.ext import *
 
-TOKEN = "8260446715:AAE53tOR8UQ9vdrLDcBXptg8Y-tys61rNg8"
+TOKEN = "8260446715:AAHfIbUkEOeS1s_K4dGx6tEJiWPowXoTOwo"
 ADMIN_ID = 8015961726
 SUPPORT = "@Star_IDOO796256363"
 
 lock = threading.Lock()
 
-# ===== تحميل البيانات بأمان =====
 def load_data():
     default = {"balances": {}, "orders": {}, "counter": 1, "spent": {}, "joined": {}}
 
@@ -22,12 +21,9 @@ def load_data():
         with open("data.json", "r") as f:
             return json.load(f)
     except:
-        print("⚠️ data.json خربان - استرجاع نسخة احتياطية")
-
         if os.path.exists("data_backup.json"):
             with open("data_backup.json", "r") as f:
                 return json.load(f)
-
         return default
 
 data = load_data()
@@ -38,7 +34,6 @@ order_id = data.get("counter", 1)
 spent = data.get("spent", {})
 joined = data.get("joined", {})
 
-# ===== حفظ آمن بدون تخريب =====
 def save():
     global order_id
     with lock:
@@ -53,7 +48,6 @@ def save():
 
         shutil.copy("data.json", "data_backup.json")
 
-# ===== المنتجات =====
 products = {
     "PUBG": {
         "60 UC": 0.95,
@@ -87,7 +81,6 @@ products = {
     }
 }
 
-# ===== القائمة =====
 def main_menu():
     return ReplyKeyboardMarkup([
         ["🛍 المنتجات"],
@@ -95,7 +88,6 @@ def main_menu():
         ["👤 حسابي", "📞 الدعم الفني"]
     ], resize_keyboard=True)
 
-# ===== START =====
 async def start(update, context):
     uid = str(update.message.from_user.id)
 
@@ -106,7 +98,6 @@ async def start(update, context):
 
     await update.message.reply_text("⚡ مرحبا بك في متجر الشيخ", reply_markup=main_menu())
 
-# ===== TEXT =====
 async def text(update, context):
     global order_id
 
@@ -130,14 +121,24 @@ async def text(update, context):
         keyboard = ReplyKeyboardMarkup([["PUBG"], ["رجوع"]], resize_keyboard=True)
         await update.message.reply_text("اختر اللعبة:", reply_markup=keyboard)
 
-    elif msg in ["PUBG", "TikTok", "Google Play"]:
-        context.user_data["game"] = msg
-        keyboard = ReplyKeyboardMarkup([[p] for p in products[msg]] + [["رجوع"]], resize_keyboard=True)
+    elif msg == "PUBG":
+        context.user_data["game"] = "PUBG"
+        keyboard = ReplyKeyboardMarkup([[p] for p in products["PUBG"]] + [["رجوع"]], resize_keyboard=True)
         await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
 
     elif msg == "📱 التطبيقات":
         keyboard = ReplyKeyboardMarkup([["TikTok", "Google Play"], ["رجوع"]], resize_keyboard=True)
         await update.message.reply_text("اختر التطبيق:", reply_markup=keyboard)
+
+    elif msg == "TikTok":
+        context.user_data["game"] = "TikTok"
+        keyboard = ReplyKeyboardMarkup([[p] for p in products["TikTok"]] + [["رجوع"]], resize_keyboard=True)
+        await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
+
+    elif msg == "Google Play":
+        context.user_data["game"] = "Google Play"
+        keyboard = ReplyKeyboardMarkup([[p] for p in products["Google Play"]] + [["رجوع"]], resize_keyboard=True)
+        await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
 
     elif msg in ["📡 سيرياتيل", "📶 MTN"]:
         context.user_data["game"] = "Syriatel" if "سيرياتيل" in msg else "MTN"
@@ -146,7 +147,7 @@ async def text(update, context):
 
     elif "game" in context.user_data and "pack" not in context.user_data:
         for p in products[context.user_data["game"]]:
-            if msg.startswith(p):
+            if msg == p:
                 context.user_data["pack"] = p
 
                 if context.user_data["game"] in ["Syriatel", "MTN"]:
@@ -231,7 +232,6 @@ async def text(update, context):
     elif msg == "📞 الدعم الفني":
         await update.message.reply_text(f"راسل الدعم: {SUPPORT}")
 
-# ===== PHOTO =====
 async def photo(update, context):
     if "deposit" not in context.user_data:
         return
@@ -254,7 +254,6 @@ async def photo(update, context):
     await update.message.reply_text("⏳ تم إرسال طلبك")
     context.user_data.clear()
 
-# ===== BUTTON =====
 async def button(update, context):
     global order_id
 
@@ -321,7 +320,6 @@ async def button(update, context):
         await context.bot.send_message(uid, "❌ تم رفض الطلب")
         await query.edit_message_caption("❌ تم الرفض")
 
-# ===== تشغيل =====
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(button))
