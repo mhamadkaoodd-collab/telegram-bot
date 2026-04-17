@@ -1,4 +1,5 @@
 import json
+import threading
 from telegram import *
 from telegram.ext import *
 
@@ -19,15 +20,18 @@ order_id = data["counter"]
 spent = data.get("spent", {})
 joined = data.get("joined", {})
 
+# ✅ حل التعليق
 def save():
-    with open("data.json", "w") as f:
-        json.dump({
-            "balances": balances,
-            "orders": orders,
-            "counter": order_id,
-            "spent": spent,
-            "joined": joined
-        }, f)
+    def _save():
+        with open("data.json", "w") as f:
+            json.dump({
+                "balances": balances,
+                "orders": orders,
+                "counter": order_id,
+                "spent": spent,
+                "joined": joined
+            }, f, indent=2)
+    threading.Thread(target=_save).start()
 
 # ===== المنتجات =====
 products = {
@@ -119,7 +123,6 @@ async def text(update, context):
         keyboard = ReplyKeyboardMarkup([[p] for p in products[context.user_data["game"]]] + [["رجوع"]], resize_keyboard=True)
         await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
 
-    # ✅ الإصلاح هون
     elif "game" in context.user_data and "pack" not in context.user_data:
         for p in products[context.user_data["game"]]:
             if msg.startswith(p):
@@ -179,7 +182,21 @@ async def text(update, context):
             await update.message.reply_text("❌ اكتب رقم فقط")
 
     elif msg == "📦 طلباتي":
-        user_orders = [f"#{k} - {v['pack']}" for k, v in orders.items() if v["user"] == uid]
+        user_orders = []
+
+        for k, v in orders.items():
+            if v["user"] == uid:
+                status = v.get("status", "pending")
+
+                if status == "done":
+                    s = "✅ تم الشحن"
+                elif status == "rejected":
+                    s = "❌ تم الرفض"
+                else:
+                    s = "⏳ قيد الانتظار"
+
+                user_orders.append(f"#{k} - {v['pack']} - {s}")
+
         await update.message.reply_text("\n".join(user_orders) if user_orders else "❌ لا يوجد طلبات")
 
     elif msg == "👤 حسابي":
