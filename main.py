@@ -146,9 +146,18 @@ async def text(update, context):
 
         await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
 
-    elif "game" in context.user_data and msg in products[context.user_data["game"]]:
-        context.user_data["pack"] = msg
-        await update.message.reply_text("📩 أرسل ID الحساب")
+    # 🔥 الحل هون (بدون تغيير النظام)
+    elif "game" in context.user_data:
+        for p in products[context.user_data["game"]]:
+            if msg.startswith(p):
+                context.user_data["pack"] = p
+
+                if context.user_data["game"] in ["Syriatel", "MTN"]:
+                    await update.message.reply_text("📱 أرسل رقم الهاتف")
+                else:
+                    await update.message.reply_text("📩 أرسل ID الحساب")
+
+                return
 
     elif "pack" in context.user_data and "id" not in context.user_data:
         context.user_data["id"] = msg
@@ -208,7 +217,7 @@ async def text(update, context):
         user_orders = [
             f"#{k} - {v['pack']}"
             for k, v in orders.items()
-            if v["user"] == uid and v.get("status") == "pending"
+            if v["user"] == uid
         ]
 
         if not user_orders:
