@@ -1,13 +1,15 @@
 import json
-import threading
 import os
 import shutil
+import threading
 from telegram import *
 from telegram.ext import *
 
 TOKEN = "8260446715:AAE53tOR8UQ9vdrLDcBXptg8Y-tys61rNg8"
 ADMIN_ID = 8015961726
 SUPPORT = "@Star_IDOO796256363"
+
+lock = threading.Lock()
 
 # ===== تحميل البيانات بأمان =====
 def load_data():
@@ -30,15 +32,16 @@ def load_data():
 
 data = load_data()
 
-balances = data["balances"]
-orders = data["orders"]
-order_id = data["counter"]
+balances = data.get("balances", {})
+orders = data.get("orders", {})
+order_id = data.get("counter", 1)
 spent = data.get("spent", {})
 joined = data.get("joined", {})
 
-# ===== حفظ بدون تعليق + باكاب =====
+# ===== حفظ آمن بدون تخريب =====
 def save():
-    def _save():
+    global order_id
+    with lock:
         with open("data.json", "w") as f:
             json.dump({
                 "balances": balances,
@@ -49,8 +52,6 @@ def save():
             }, f, indent=2)
 
         shutil.copy("data.json", "data_backup.json")
-
-    threading.Thread(target=_save).start()
 
 # ===== المنتجات =====
 products = {
@@ -101,6 +102,7 @@ async def start(update, context):
     if uid not in joined:
         import datetime
         joined[uid] = str(datetime.datetime.now())
+        save()
 
     await update.message.reply_text("⚡ مرحبا بك في متجر الشيخ", reply_markup=main_menu())
 
