@@ -1,5 +1,7 @@
 import json
 import threading
+import os
+import shutil
 from telegram import *
 from telegram.ext import *
 
@@ -7,12 +9,26 @@ TOKEN = "8260446715:AAE53tOR8UQ9vdrLDcBXptg8Y-tys61rNg8"
 ADMIN_ID = 8015961726
 SUPPORT = "@Star_IDOO796256363"
 
-# ===== تحميل البيانات =====
-try:
-    with open("data.json", "r") as f:
-        data = json.load(f)
-except:
-    data = {"balances": {}, "orders": {}, "counter": 1, "spent": {}, "joined": {}}
+# ===== تحميل البيانات بأمان =====
+def load_data():
+    default = {"balances": {}, "orders": {}, "counter": 1, "spent": {}, "joined": {}}
+
+    if not os.path.exists("data.json"):
+        return default
+
+    try:
+        with open("data.json", "r") as f:
+            return json.load(f)
+    except:
+        print("⚠️ data.json خربان - استرجاع نسخة احتياطية")
+
+        if os.path.exists("data_backup.json"):
+            with open("data_backup.json", "r") as f:
+                return json.load(f)
+
+        return default
+
+data = load_data()
 
 balances = data["balances"]
 orders = data["orders"]
@@ -20,7 +36,7 @@ order_id = data["counter"]
 spent = data.get("spent", {})
 joined = data.get("joined", {})
 
-# ✅ حل التعليق
+# ===== حفظ بدون تعليق + باكاب =====
 def save():
     def _save():
         with open("data.json", "w") as f:
@@ -31,6 +47,9 @@ def save():
                 "spent": spent,
                 "joined": joined
             }, f, indent=2)
+
+        shutil.copy("data.json", "data_backup.json")
+
     threading.Thread(target=_save).start()
 
 # ===== المنتجات =====
@@ -183,7 +202,6 @@ async def text(update, context):
 
     elif msg == "📦 طلباتي":
         user_orders = []
-
         for k, v in orders.items():
             if v["user"] == uid:
                 status = v.get("status", "pending")
@@ -224,9 +242,12 @@ async def photo(update, context):
         InlineKeyboardButton("❌ رفض", callback_data=f"no_{uid}")
     ]])
 
-    await context.bot.send_photo(ADMIN_ID, update.message.photo[-1].file_id,
+    await context.bot.send_photo(
+        ADMIN_ID,
+        update.message.photo[-1].file_id,
         caption=f"📥 طلب شحن\n👤 {uid}\n💰 {amount}$",
-        reply_markup=keyboard)
+        reply_markup=keyboard
+    )
 
     await update.message.reply_text("⏳ تم إرسال طلبك")
     context.user_data.clear()
@@ -263,9 +284,11 @@ async def button(update, context):
             InlineKeyboardButton("❌ رفض", callback_data=f"reject_{oid}_{uid}")
         ]])
 
-        await context.bot.send_message(ADMIN_ID,
+        await context.bot.send_message(
+            ADMIN_ID,
             f"📦 طلب جديد #{oid}\n👤 {uid}\n🎮 {game}\n💎 {pack}\n🆔 {context.user_data['id']}\n💰 {price}$",
-            reply_markup=keyboard)
+            reply_markup=keyboard
+        )
 
         await query.edit_message_text(f"✅ تم الطلب #{oid}")
         context.user_data.clear()
@@ -296,7 +319,7 @@ async def button(update, context):
         await context.bot.send_message(uid, "❌ تم رفض الطلب")
         await query.edit_message_caption("❌ تم الرفض")
 
-# ===== RUN =====
+# ===== تشغيل =====
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(button))
