@@ -32,8 +32,38 @@ def save():
 # ===== المنتجات =====
 products = {
     "PUBG": {
-        "60 UC": 0.9,
-        "325 UC": 4.5,
+        "60 UC": 0.95,
+        "325 UC": 4.75,
+        "660 UC": 9.5,
+        "1800 UC": 23.62,
+        "3850 UC": 47.5,
+        "8100 UC": 95,
+    },
+
+    "TikTok": {
+        "1000 Coins": 1,
+        "5000 Coins": 5,
+    },
+
+    "Google Play": {
+        "5$": 5,
+        "10$": 10,
+    },
+
+    "Syriatel": {
+        "40 ليرة - 0.38$": 0.38,
+        "50 ليرة - 0.46$": 0.46,
+        "80 ليرة - 0.77$": 0.77,
+        "100 ليرة - 0.96$": 0.96,
+        "200 ليرة - 1.9$": 1.9,
+    },
+
+    "MTN": {
+        "40 ليرة - 0.38$": 0.38,
+        "50 ليرة - 0.46$": 0.46,
+        "85 ليرة - 0.8$": 0.8,
+        "100 ليرة - 0.96$": 0.96,
+        "200 ليرة - 1.9$": 1.9,
     }
 }
 
@@ -65,33 +95,61 @@ async def text(update, context):
     msg = update.message.text
     uid = str(update.message.from_user.id)
 
-    # ===== رجوع =====
     if msg == "رجوع":
         context.user_data.clear()
         await update.message.reply_text("🔙 رجعت", reply_markup=main_menu())
         return
 
-    # ===== منتجات =====
+    # ===== المنتجات =====
     if msg == "🛍 المنتجات":
+        keyboard = ReplyKeyboardMarkup([
+            ["🎮 الألعاب", "📱 التطبيقات"],
+            ["📡 سيرياتيل", "📶 MTN"],
+            ["رجوع"]
+        ], resize_keyboard=True)
+        await update.message.reply_text("اختر القسم:", reply_markup=keyboard)
+
+    elif msg == "🎮 الألعاب":
         keyboard = ReplyKeyboardMarkup([
             ["PUBG"],
             ["رجوع"]
         ], resize_keyboard=True)
         await update.message.reply_text("اختر اللعبة:", reply_markup=keyboard)
 
-    elif msg == "PUBG":
-        context.user_data["game"] = "PUBG"
+    elif msg in ["PUBG", "TikTok", "Google Play"]:
+        context.user_data["game"] = msg
+
+        keyboard = ReplyKeyboardMarkup(
+            [[p] for p in products[msg]] + [["رجوع"]],
+            resize_keyboard=True
+        )
+
+        await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
+
+    elif msg == "📱 التطبيقات":
         keyboard = ReplyKeyboardMarkup([
-            ["60 UC", "325 UC"],
+            ["TikTok", "Google Play"],
             ["رجوع"]
         ], resize_keyboard=True)
-        await update.message.reply_text("اختر الشدة:", reply_markup=keyboard)
+        await update.message.reply_text("اختر التطبيق:", reply_markup=keyboard)
 
-    elif msg in ["60 UC", "325 UC"]:
+    elif msg in ["📡 سيرياتيل", "📶 MTN"]:
+        if msg == "📡 سيرياتيل":
+            context.user_data["game"] = "Syriatel"
+        else:
+            context.user_data["game"] = "MTN"
+
+        keyboard = ReplyKeyboardMarkup(
+            [[p] for p in products[context.user_data["game"]]] + [["رجوع"]],
+            resize_keyboard=True
+        )
+
+        await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
+
+    elif "game" in context.user_data and msg in products[context.user_data["game"]]:
         context.user_data["pack"] = msg
         await update.message.reply_text("📩 أرسل ID الحساب")
 
-    # ===== استلام ID =====
     elif "pack" in context.user_data and "id" not in context.user_data:
         context.user_data["id"] = msg
 
@@ -117,13 +175,11 @@ async def text(update, context):
             reply_markup=keyboard
         )
 
-    # ===== إيداع =====
     elif msg == "💰 إيداع رصيد":
         keyboard = ReplyKeyboardMarkup([
             ["💳 شام كاش", "📱 سيرياتيل كاش"],
             ["رجوع"]
         ], resize_keyboard=True)
-
         await update.message.reply_text("اختر طريقة الدفع:", reply_markup=keyboard)
 
     elif msg == "💳 شام كاش":
@@ -140,7 +196,6 @@ async def text(update, context):
             parse_mode="Markdown"
         )
 
-    # ===== إدخال مبلغ الإيداع =====
     elif "deposit" in context.user_data and "amount" not in context.user_data:
         try:
             amount = float(msg)
@@ -149,15 +204,18 @@ async def text(update, context):
         except:
             await update.message.reply_text("❌ اكتب رقم فقط")
 
-    # ===== طلباتي =====
     elif msg == "📦 طلباتي":
-        user_orders = [f"#{k} - {v['pack']}" for k, v in orders.items() if v["user"] == uid]
+        user_orders = [
+            f"#{k} - {v['pack']}"
+            for k, v in orders.items()
+            if v["user"] == uid and v.get("status") == "pending"
+        ]
+
         if not user_orders:
             await update.message.reply_text("❌ لا يوجد طلبات")
         else:
             await update.message.reply_text("\n".join(user_orders))
 
-    # ===== حسابي =====
     elif msg == "👤 حسابي":
         bal = balances.get(uid, 0)
         sp = spent.get(uid, 0)
@@ -173,7 +231,6 @@ async def text(update, context):
 📅 الانضمام: {joined.get(uid, "غير معروف")}"""
         )
 
-    # ===== دعم =====
     elif msg == "📞 الدعم الفني":
         await update.message.reply_text(f"راسل الدعم: {SUPPORT}")
 
@@ -210,7 +267,6 @@ async def button(update, context):
     await query.answer()
     data = query.data
 
-    # ===== تأكيد شراء =====
     if data == "confirm":
         uid = str(query.from_user.id)
 
@@ -264,7 +320,6 @@ async def button(update, context):
         context.user_data.clear()
         await query.edit_message_text("❌ تم الإلغاء")
 
-    # ===== قبول شحن =====
     elif data.startswith("ok_"):
         _, uid, amount = data.split("_")
         amount = float(amount)
@@ -280,7 +335,6 @@ async def button(update, context):
         await context.bot.send_message(uid, "❌ تم رفض الطلب")
         await query.edit_message_caption("❌ تم الرفض")
 
-    # ===== تنفيذ الطلب =====
     elif data.startswith("done_"):
         _, oid, uid = data.split("_")
 
