@@ -11,7 +11,7 @@ SUPPORT = "@Star_IDOO796256363"
 
 lock = threading.Lock()
 
-# ===== تحميل البيانات بأمان =====
+# ===== تحميل البيانات =====
 def load_data():
     default = {"balances": {}, "orders": {}, "counter": 1, "spent": {}, "joined": {}}
 
@@ -22,12 +22,9 @@ def load_data():
         with open("data.json", "r") as f:
             return json.load(f)
     except:
-        print("⚠️ data.json خربان - استرجاع نسخة احتياطية")
-
         if os.path.exists("data_backup.json"):
             with open("data_backup.json", "r") as f:
                 return json.load(f)
-
         return default
 
 data = load_data()
@@ -53,15 +50,47 @@ def save():
 
         shutil.copy("data.json", "data_backup.json")
 
-# ===== المنتجات =====
-products = {
 
-    # ===== الألعاب =====
+# ===== تقسيم النظام بدون تعارض =====
+SYSTEM_BUTTONS = {
+    "🛍 المنتجات",
+    "💰 إيداع رصيد",
+    "📦 طلباتي",
+    "👤 حسابي",
+    "📞 الدعم الفني",
+    "رجوع",
+    "🎮 الألعاب",
+    "📱 التطبيقات",
+    "📡 سيرياتيل",
+    "📶 MTN"
+}
+
+GAME_LIST = {
+    "PUBG", "Free Fire", "Call of Duty Mobile", "eFootball",
+    "Mobile Legends", "Clash of Clans", "Clash Royale", "Roblox"
+}
+
+APP_LIST = {
+    "Bigo Live", "Party Star", "Exina Live", "Ahla Chat", "SoulChill",
+    "Saba Chat", "IMO", "Q Chat", "Ho Chat", "Ya Ahla Chat",
+    "Bella Chat", "Mego Live", "Yalla Live", "YoHo", "Yoyo Chat",
+    "Haki Chat", "Up Live", "Solfa Chat", "Happy Chat", "Super Live",
+    "Ayomi Chat", "Talk Talk", "Popo Live", "4Fun Chat", "Ohla Chat",
+    "Koko Live", "Hiya Chat", "Taka Chat", "Likee", "Kwai",
+    "Lego Live", "Lam Chat", "Hala"
+}
+
+# ===== المنتجات (باقات صحيحة 100%) =====
+products = {
     "PUBG": {
         "60 UC": 0.95,
         "325 UC": 4.75,
-        "660 UC": 9.5
+        "660 UC": 9.5,
+        "1800 UC": 23.62,
+        "3850 UC": 47.5,
+        "8100 UC": 95
     },
+
     "Free Fire": {"100 Diamonds": 1, "500 Diamonds": 5},
     "Call of Duty Mobile": {"80 CP": 1, "400 CP": 5},
     "eFootball": {"100 Coins": 1},
@@ -70,7 +99,6 @@ products = {
     "Clash Royale": {"80 Gems": 1},
     "Roblox": {"400 Robux": 5},
 
-    # ===== تطبيقات اللايف =====
     "Bigo Live": {"1000 Coins": 5},
     "Party Star": {"1000 Coins": 5},
     "Exina Live": {"1000 Coins": 5},
@@ -105,9 +133,21 @@ products = {
     "Lam Chat": {"1000 Coins": 5},
     "Hala": {"1000 Coins": 5},
 
-    # ===== رصيد =====
-    "Syriatel": {"40 ليرة - 0.38$": 0.38},
-    "MTN": {"40 ليرة - 0.38$": 0.38}
+    "Syriatel": {
+        "40": 0.38,
+        "50": 0.46,
+        "80": 0.77,
+        "100": 0.96,
+        "200": 1.9
+    },
+
+    "MTN": {
+        "40": 0.38,
+        "50": 0.46,
+        "85": 0.8,
+        "100": 0.96,
+        "200": 1.9
+    }
 }
 
 # ===== القائمة =====
@@ -117,6 +157,7 @@ def main_menu():
         ["💰 إيداع رصيد", "📦 طلباتي"],
         ["👤 حسابي", "📞 الدعم الفني"]
     ], resize_keyboard=True)
+
 
 # ===== START =====
 async def start(update, context):
@@ -129,10 +170,10 @@ async def start(update, context):
 
     await update.message.reply_text("⚡ مرحبا بك في متجر الشيخ", reply_markup=main_menu())
 
+
 # ===== TEXT =====
 async def text(update, context):
     global order_id
-
     msg = update.message.text
     uid = str(update.message.from_user.id)
 
@@ -141,49 +182,55 @@ async def text(update, context):
         await update.message.reply_text("🔙 رجعت", reply_markup=main_menu())
         return
 
-    if msg == "🛍 المنتجات":
-        keyboard = ReplyKeyboardMarkup([
-            ["🎮 الألعاب", "📱 التطبيقات"],
-            ["📡 سيرياتيل", "📶 MTN"],
-            ["رجوع"]
-        ], resize_keyboard=True)
-        await update.message.reply_text("اختر القسم:", reply_markup=keyboard)
+    # ===== حماية الأزرار =====
+    if msg in SYSTEM_BUTTONS:
 
-    elif msg == "🎮 الألعاب":
-        keyboard = ReplyKeyboardMarkup([
-            ["PUBG", "Free Fire"],
-            ["Call of Duty Mobile", "eFootball"],
-            ["Mobile Legends", "Clash of Clans"],
-            ["Clash Royale", "Roblox"],
-            ["رجوع"]
-        ], resize_keyboard=True)
-        await update.message.reply_text("اختر اللعبة:", reply_markup=keyboard)
+        if msg == "🛍 المنتجات":
+            keyboard = ReplyKeyboardMarkup([
+                ["🎮 الألعاب", "📱 التطبيقات"],
+                ["📡 سيرياتيل", "📶 MTN"],
+                ["رجوع"]
+            ], resize_keyboard=True)
+            await update.message.reply_text("اختر القسم:", reply_markup=keyboard)
 
-    elif msg == "📱 التطبيقات":
-        keyboard = ReplyKeyboardMarkup([
-            ["Bigo Live", "Party Star"],
-            ["Exina Live", "Ahla Chat"],
-            ["SoulChill", "Saba Chat"],
-            ["IMO", "Q Chat"],
-            ["Ho Chat", "Ya Ahla Chat"],
-            ["Bella Chat", "Mego Live"],
-            ["Yalla Live", "YoHo"],
-            ["Yoyo Chat", "Haki Chat"],
-            ["Up Live", "Solfa Chat"],
-            ["Happy Chat", "Super Live"],
-            ["Ayomi Chat", "Talk Talk"],
-            ["Popo Live", "4Fun Chat"],
-            ["Ohla Chat", "Koko Live"],
-            ["Hiya Chat", "Taka Chat"],
-            ["Likee", "Kwai"],
-            ["Lego Live", "Lam Chat"],
-            ["Hala"],
-            ["رجوع"]
-        ], resize_keyboard=True)
-        await update.message.reply_text("اختر التطبيق:", reply_markup=keyboard)
+        elif msg == "🎮 الألعاب":
+            keyboard = ReplyKeyboardMarkup([[g] for g in GAME_LIST] + [["رجوع"]], resize_keyboard=True)
+            await update.message.reply_text("اختر اللعبة:", reply_markup=keyboard)
 
-    elif msg in products:
+        elif msg == "📱 التطبيقات":
+            keyboard = ReplyKeyboardMarkup([[a] for a in APP_LIST] + [["رجوع"]], resize_keyboard=True)
+            await update.message.reply_text("اختر التطبيق:", reply_markup=keyboard)
 
+        elif msg in ["📡 سيرياتيل", "📶 MTN"]:
+            context.user_data["game"] = "Syriatel" if "سيرياتيل" in msg else "MTN"
+            keyboard = ReplyKeyboardMarkup([[p] for p in products[context.user_data["game"]]] + [["رجوع"]], resize_keyboard=True)
+            await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
+
+        elif msg == "👤 حسابي":
+            await update.message.reply_text(
+                f"""👤 حسابي
+
+🆔 {uid}
+💰 {balances.get(uid,0)}$
+💸 {spent.get(uid,0)}$
+📦 {len([o for o in orders.values() if o["user"]==uid])}
+📅 {joined.get(uid)}"""
+            )
+
+        elif msg == "📦 طلباتي":
+            user_orders = []
+            for k, v in orders.items():
+                if v["user"] == uid:
+                    user_orders.append(f"#{k} - {v['pack']} - {v['status']}")
+            await update.message.reply_text("\n".join(user_orders) if user_orders else "لا يوجد طلبات")
+
+        elif msg == "📞 الدعم الفني":
+            await update.message.reply_text(SUPPORT)
+
+        return
+
+    # ===== اختيار منتج =====
+    if msg in products:
         context.user_data["game"] = msg
         keyboard = ReplyKeyboardMarkup([[p] for p in products[msg]] + [["رجوع"]], resize_keyboard=True)
         await update.message.reply_text("اختر الباقة:", reply_markup=keyboard)
@@ -205,21 +252,14 @@ async def text(update, context):
         ])
 
         await update.message.reply_text(
-            f"""📦 تأكيد الطلب
-
-🎮 {game}
-💎 {pack}
-🆔 {msg}
-
-💰 السعر: {price}$
-💳 رصيدك: {bal}$""",
+            f"📦 تأكيد\n🎮 {game}\n💎 {pack}\n🆔 {msg}\n💰 {price}$\n💳 {bal}$",
             reply_markup=keyboard
         )
+
 
 # ===== BUTTON =====
 async def button(update, context):
     global order_id
-
     query = update.callback_query
     await query.answer()
 
@@ -234,7 +274,6 @@ async def button(update, context):
             return
 
         balances[uid] -= price
-        spent[uid] = spent.get(uid, 0) + price
 
         oid = str(order_id)
         order_id += 1
@@ -249,19 +288,14 @@ async def button(update, context):
 
         save()
 
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ تم الشحن", callback_data=f"done_{oid}_{uid}"),
-            InlineKeyboardButton("❌ رفض", callback_data=f"reject_{oid}_{uid}")
-        ]])
-
         await context.bot.send_message(
             ADMIN_ID,
-            f"📦 طلب جديد #{oid}\n👤 {uid}\n🎮 {game}\n💎 {pack}\n🆔 {context.user_data['id']}\n💰 {price}$",
-            reply_markup=keyboard
+            f"📦 طلب #{oid}\n👤 {uid}\n🎮 {game}\n💎 {pack}\n🆔 {context.user_data['id']}"
         )
 
-        await query.edit_message_text(f"✅ تم الطلب #{oid}")
+        await query.edit_message_text(f"تم الطلب #{oid}")
         context.user_data.clear()
+
 
 # ===== تشغيل =====
 app = ApplicationBuilder().token(TOKEN).build()
@@ -269,5 +303,5 @@ app.add_handler(CommandHandler("start", start))
 app.add_handler(CallbackQueryHandler(button))
 app.add_handler(MessageHandler(filters.TEXT, text))
 
-print("🔥 BOT WORKING")
+print("BOT RUNNING")
 app.run_polling()
